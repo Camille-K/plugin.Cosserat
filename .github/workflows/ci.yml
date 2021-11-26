@@ -68,13 +68,13 @@ jobs:
       - name: Create artifact
         uses: actions/upload-artifact@v2
         with:
-          name: SofaPython3_${{ steps.sofa.outputs.run_branch }}_for-SOFA-${{ steps.sofa.outputs.sofa_version }}_${{ runner.os }}
+          name: pluginCosserat_${{ steps.sofa.outputs.run_branch }}_for-SOFA-${{ steps.sofa.outputs.sofa_version }}_${{ runner.os }}
           path: ${{ env.WORKSPACE_INSTALL_PATH }}
 
       - name: Install artifact
         uses: actions/download-artifact@v2
         with:
-          name: SofaPython3_${{ steps.sofa.outputs.run_branch }}_for-SOFA-${{ steps.sofa.outputs.sofa_version }}_${{ runner.os }}
+          name: pluginCosserat_${{ steps.sofa.outputs.run_branch }}_for-SOFA-${{ steps.sofa.outputs.sofa_version }}_${{ runner.os }}
           path: ${{ env.WORKSPACE_ARTIFACT_PATH }}
 
       # - name: Set env vars for tests
@@ -144,6 +144,6 @@ jobs:
           tag_name: release-${{ github.ref_name }}
           fail_on_unmatched_files: true
           files: |
-            artifacts/SofaPython3_*_Linux.zip
-            artifacts/SofaPython3_*_Windows.zip
-            artifacts/SofaPython3_*_macOS.zip
+            artifacts/pluginCosserat_*_Linux.zip
+            artifacts/pluginCosserat_*_Windows.zip
+            artifacts/pluginCosserat_*_macOS.zip
