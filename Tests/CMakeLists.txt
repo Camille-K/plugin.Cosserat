@@ -5,8 +5,8 @@ set(This Cosserat.Tests)
 project(${This} C CXX)
 
 #find_package(CosseratPlugin REQUIRED)
-find_package(SofaTest REQUIRED)
 find_package(Threads REQUIRED)
+find_package(SofaTest REQUIRED)
 
 enable_testing()
 
