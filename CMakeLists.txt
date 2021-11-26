@@ -20,6 +20,7 @@ find_package(SofaFramework REQUIRED)
 find_package(SofaOpenglVisual REQUIRED)
 find_package(SofaBaseLinearSolver REQUIRED)
 find_package(SofaBaseMechanics REQUIRED)
+find_package(SofaConstraint REQUIRED)
 
 option(COSSERAT_IGNORE_ERRORS "Enable this option to ignore the recommendations and generate anyway." ON)
 
@@ -125,7 +126,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-DSOFA_BUILD_COS
 set_target_properties(${PROJECT_NAME} PROPERTIES DEBUG_POSTFIX "_d")
 target_link_libraries(${PROJECT_NAME} 
     SofaCore SofaBaseMechanics SofaBaseLinearSolver SofaBaseMechanics SofaBaseVisual
-    SofaConstraint SofaSimpleFem SofaOpenglVisual SofaRigid
+    SofaConstraint SofaSimpleFem SofaOpenglVisual SofaRigid SofaConstraint
     )
 
 
