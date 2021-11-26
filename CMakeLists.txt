@@ -25,9 +25,9 @@ if(NOT COSSERAT_IGNORE_ERRORS)
     if(NOT PLUGIN_SOFAPYTHON AND NOT PLUGIN_SOFAPYTHON3)
         message(SEND_ERROR "
             You should not use the plugin Cosserat without enabling PLUGIN_SOFAPYTHON or PLUGIN_SOFAPYTHON3.
-            Since all the scenes to test this plugin are using one of this two plugins. 
+            Since all the scenes to test this plugin are using one of this two plugins.
             To fix this error you can either follow the recommendation or enable COSSERAT_IGNORE_ERRORS.")
-    endif()    
+    endif()
 endif()
 
 # set(SofaPython_VERSION 3.8.5)
@@ -64,7 +64,7 @@ set(HEADER_FILES
     src/forcefield/CosseratInternalActuation.inl
     # src/forcefield/MyUniformVelocityDampingForceField.h
     # src/forcefield/MyUniformVelocityDampingForceField.inl
-    
+
     src/constraint/CosseratSlidingConstraint.h
     src/constraint/CosseratSlidingConstraint.inl
     src/constraint/QPSlidingConstraint.h
@@ -157,14 +157,6 @@ sofa_create_package_with_targets(
     INCLUDE_INSTALL_DIR ${PROJECT_NAME}
     RELOCATABLE "plugins"
     )
-
-
-find_package(GTest CONFIG QUIET)
-if (NOT GTest_FOUND)
-    # This find_package needs to be executed at MOST once, else it will fails on the second call
-    find_package(GMock QUIET)
-endif ()
-
 
 option(COSSERAT_BUILD_TESTS "Build unit tests" ON )
 if(COSSERAT_BUILD_TESTS)
