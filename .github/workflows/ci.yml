@@ -124,9 +124,9 @@ jobs:
       continue-on-error: true
       steps:
         - name: Get artifacts
-        uses: actions/download-artifact@v2
-        with:
-        path: artifacts
+          uses: actions/download-artifact@v2
+          with:
+            path: artifacts
 
         - name: Zip artifacts
           shell: bash
@@ -135,6 +135,7 @@ jobs:
             for artifact in *; do
               zip $artifact.zip -r $artifact/*
             done
+
         - name: Upload release
           uses: softprops/action-gh-release@v1
           with:
