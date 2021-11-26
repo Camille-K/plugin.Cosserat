@@ -28,6 +28,7 @@ target_link_libraries(${PROJECT_NAME}
         SofaTest
         gtest
         CosseratPlugin
+        Threads::Threads
 )
 
 target_include_directories(${This}
