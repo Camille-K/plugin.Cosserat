@@ -14,10 +14,10 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release")
 endif()
 
-
 include(cmake/environment.cmake)
+
 find_package(SofaFramework REQUIRED)
-#find_package(SOFA COMPONENTS SofaFramework REQUIRED)
+find_package(SofaOpenglVisual REQUIRED)
 
 option(COSSERAT_IGNORE_ERRORS "Enable this option to ignore the recommendations and generate anyway." ON)
 
