@@ -18,6 +18,7 @@ include(cmake/environment.cmake)
 
 find_package(SofaFramework REQUIRED)
 find_package(SofaOpenglVisual REQUIRED)
+find_package(SofaBaseLinearSolver REQUIRED)
 
 option(COSSERAT_IGNORE_ERRORS "Enable this option to ignore the recommendations and generate anyway." ON)
 
@@ -121,7 +122,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC "$<INSTALL_INTERFACE:include>"
 
 set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-DSOFA_BUILD_COSSERAT")
 set_target_properties(${PROJECT_NAME} PROPERTIES DEBUG_POSTFIX "_d")
-target_link_libraries(${PROJECT_NAME} SofaCore SofaConstraint SofaSimpleFem SofaBaseMechanics SofaRigid SofaBaseVisual SofaOpenglVisual)
+target_link_libraries(${PROJECT_NAME} SofaCore SofaConstraint SofaSimpleFem SofaBaseMechanics SofaBaseLinearSolver SofaRigid SofaBaseVisual SofaOpenglVisual)
 
 
 # if(SofaPython_FOUND)
