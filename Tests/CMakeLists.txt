@@ -6,6 +6,7 @@ project(${This} C CXX)
 
 #find_package(CosseratPlugin REQUIRED)
 find_package(SofaTest REQUIRED)
+find_package(Threads REQUIRED)
 
 enable_testing()
 
@@ -23,20 +24,20 @@ set(SOURCE_FILES
 
 add_executable(${This} ${SOURCE_FILES} ${HEADER_FILES})
 
-target_link_libraries(${PROJECT_NAME} 
-        SofaTest 
+target_link_libraries(${PROJECT_NAME}
+        SofaTest
         gtest
         CosseratPlugin
 )
 
-target_include_directories(${This} 
-        PUBLIC 
+target_include_directories(${This}
+        PUBLIC
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../../>"
 )
 
 
 add_test(
-        NAME ${This} 
+        NAME ${This}
         COMMAND ${This}
 )
 
