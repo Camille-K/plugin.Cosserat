@@ -546,4 +546,35 @@ const sofa::type::vector<typename BeamPlasticLawForceField<DataTypes>::Mechanica
     return m_sectionMechanicalStates;
 }
 
+template< class DataTypes>
+const sofa::type::vector<typename BeamPlasticLawForceField<DataTypes>::Real>& BeamPlasticLawForceField<DataTypes>::getYoungModuli()
+{
+    return this->d_youngModulusList.getValue();
+}
+
+template< class DataTypes>
+const sofa::type::vector<typename BeamPlasticLawForceField<DataTypes>::Real>& BeamPlasticLawForceField<DataTypes>::getPoissonRatios()
+{
+    return this->d_poissonRatioList.getValue();
+}
+
+template< class DataTypes>
+const sofa::type::vector<typename BeamPlasticLawForceField<DataTypes>::Real>& BeamPlasticLawForceField<DataTypes>::getInitialYieldStresses()
+{
+    return d_initialYieldStresses.getValue();
+}
+
+template< class DataTypes>
+const sofa::type::vector<typename BeamPlasticLawForceField<DataTypes>::Real>& BeamPlasticLawForceField<DataTypes>::getPlasticModuli()
+{
+    return d_plasticModuli.getValue();
+}
+
+template< class DataTypes>
+const sofa::type::vector<typename BeamPlasticLawForceField<DataTypes>::Real>& BeamPlasticLawForceField<DataTypes>::getHardeningCoefficients()
+{
+    return d_mixedHardeningCoefficients.getValue();
+}
+
+
 } // sofa::component::forcefield

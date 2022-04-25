@@ -76,6 +76,11 @@ DiscreteCosseratMapping<TIn1, TIn2, TOut>::DiscreteCosseratMapping()
         this->update_ExponentialSE3(inDeform);
         return sofa::core::objectmodel::ComponentState::Valid;
     }, {});
+
+    //EXPERIMENTAL
+    m_deltaCurvAbscissa = 1.0e-1;
+    m_finiteDifferenceDegree = 1;
+    m_nbGaussPointsPerFrame = (2*m_finiteDifferenceDegree+1)*(2*m_finiteDifferenceDegree+1);
 }
 
 
@@ -94,6 +99,65 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::init()
     m_fromModel1 = this->getFromModels1()[0]; // Cosserat deformations (torsion and bending), in local frame
     m_fromModel2 = this->getFromModels2()[0]; // Cosserat base, in global frame
     m_toModel = this->getToModels()[0];  // Cosserat rigid frames, in global frame
+
+    /***** EXPERIMENTAL: Strain approximation by finite differences *****/
+
+    if(l_fromPlasticForceField)
+    {
+        const auto nbFrames = d_curv_abs_frames.getValue().size();
+
+        m_visualisationGaussPoints.clear();
+        m_previousStrains.clear();
+        m_previousStrains.resize(nbFrames*m_nbGaussPointsPerFrame);
+        m_previousStresses.clear();
+        m_previousStresses.resize(nbFrames*m_nbGaussPointsPerFrame);
+        m_gpMechanicalStates.clear();
+        m_gpMechanicalStates.resize(nbFrames*m_nbGaussPointsPerFrame, MechanicalState::ELASTIC);
+        m_yieldStresses.clear();
+        m_yieldStresses.resize(nbFrames*m_nbGaussPointsPerFrame);
+        m_backStresses.clear();
+        m_backStresses.resize(nbFrames*m_nbGaussPointsPerFrame);
+
+        const auto nbBeams = d_curv_abs_section.getValue().size()-1;
+
+        m_youngModuli.clear();
+        m_youngModuli = type::vector<Real>(l_fromPlasticForceField->getYoungModuli());
+        m_poissonRatios.clear();
+        m_poissonRatios = type::vector<Real>(l_fromPlasticForceField->getPoissonRatios());
+        m_initialYieldStresses.clear();
+        m_initialYieldStresses = type::vector<Real>(l_fromPlasticForceField->getInitialYieldStresses());
+        m_plasticModuli.clear();
+        m_plasticModuli = type::vector<Real>(l_fromPlasticForceField->getPlasticModuli());
+        m_hardeningCoefficients.clear();
+        m_hardeningCoefficients = type::vector<Real>(l_fromPlasticForceField->getHardeningCoefficients());
+
+        m_generalisedHookeMatrices.clear();
+        m_generalisedHookeMatrices.resize(nbBeams);
+        for (unsigned int beamId; beamId < nbBeams; beamId++)
+        {
+            const Real E = m_youngModuli[beamId];
+            const Real nu = m_poissonRatios[beamId];
+            Mat9x9 currentBeamHookeLaw = Mat9x9();
+            currentBeamHookeLaw(0, 0) = currentBeamHookeLaw(4, 4) = currentBeamHookeLaw(8, 8) = 1 - nu;
+            currentBeamHookeLaw(0, 4) = currentBeamHookeLaw(0, 8) = currentBeamHookeLaw(4, 0) = currentBeamHookeLaw(8, 0) = nu;
+            currentBeamHookeLaw(4, 8) = currentBeamHookeLaw(8, 4) = nu;
+
+            currentBeamHookeLaw(1, 1) = currentBeamHookeLaw(2, 2) = currentBeamHookeLaw(3, 3) = (1 - 2 * nu) / 2;
+            currentBeamHookeLaw(5, 5) = currentBeamHookeLaw(6, 6) = currentBeamHookeLaw(7, 7) = (1 - 2 * nu) / 2;
+
+            currentBeamHookeLaw(1, 3) = currentBeamHookeLaw(2, 6) = currentBeamHookeLaw(5, 7) = (1 - 2 * nu) / 2;
+            currentBeamHookeLaw(3, 1) = currentBeamHookeLaw(6, 2) = currentBeamHookeLaw(7, 5) = (1 - 2 * nu) / 2;
+
+            currentBeamHookeLaw *= E / ((1 + nu) * (1 - 2 * nu));
+
+            m_generalisedHookeMatrices.push_back(currentBeamHookeLaw);
+        }
+
+        const int orderOfMagnitude = m_initialYieldStresses[0]; //Should use std::abs, but d_initialYieldStress > 0
+        m_stressComparisonThreshold = std::numeric_limits<double>::epsilon() * orderOfMagnitude;
+    }
+
+    /******************************************************/
 
     // Fill the initial vector
     const OutDataVecCoord* xFromData = m_toModel->read(core::ConstVecCoordId::position());
@@ -158,6 +222,191 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::apply(
     // @todo do this another place
     m_index_input = 0;
     dataVecOutPos[0]->endEdit();
+
+    // EXPERIMENTAL: computation of local strains
+    // TO DO: implement this in a specific component (plastic mapping inheriting
+    // from DiscreteCosseratMapping? Mapping + ForceField hybrid component ?)
+
+    // Idea : for each frame, we compute the position of a second frame, at a
+    // distance of epsilon along the centreline. For each of these frames, we compute
+    // the positions of several points regularly spread in the beam section. We then use
+    // these points to approximate the local strain by computing finite differences
+    if (l_fromPlasticForceField)
+    {
+        const OutVecCoord& framesDoFs = dataVecOutPos[0]->getValue();
+        m_visualisationGaussPoints.clear();
+
+        // deformedVectors to compute the deformation gradient
+        type::vector<Vector3> m_deformedVectors;
+
+        for(unsigned int frameId=0; frameId<sz; frameId++)
+        {
+            // Getting the updated position of the frame
+            OutCoord refFrameDoFs = framesDoFs[frameId];
+            const Vector3& refFramePos = refFrameDoFs.getCenter();
+            const type::Quat<Real>& refFrameQuat = refFrameDoFs.getOrientation();
+            const Vector3 refFrameYDirection = refFrameQuat.rotate(Vector3(0., 1., 0.));
+            const Vector3 refFrameZDirection = refFrameQuat.rotate(Vector3(0., 0., 1.));
+
+            // Computing the position of a new frame, at a distance of epsilon
+            const unsigned int BeamIdContainingFrame = this->m_indicesVectors[frameId]-1;
+            double newFrameCurvAbscissa = this->m_framesLengthVectors[frameId] + m_deltaCurvAbscissa;
+            const Vector3 beamStrainDoFs = in1[BeamIdContainingFrame];
+
+            Transform newFrameLocalTransform;
+            this->computeExponentialSE3(newFrameCurvAbscissa,beamStrainDoFs,newFrameLocalTransform);
+
+            Transform newFrameGlobalTransform = frame0;
+            for (unsigned int beamId=0; beamId < this->m_indicesVectors[frameId]; beamId++)
+                newFrameGlobalTransform *= this->m_nodesExponentialSE3Vectors[beamId];
+            newFrameGlobalTransform *= newFrameLocalTransform;
+
+            Vector3 newFramePos = newFrameGlobalTransform.getOrigin();
+            type::Quat newFrameQuat = newFrameGlobalTransform.getOrientation();
+            const Vector3 newFrameYDirection = newFrameQuat.rotate(Vector3(0., 1., 0.));
+            const Vector3 newFrameZDirection = newFrameQuat.rotate(Vector3(0., 0., 1.));
+
+            // Computing positions of Gauss points for each frame
+            auto radius = l_fromPlasticForceField->getRadius();
+            Real deltaY = radius / 2*m_finiteDifferenceDegree;
+            Real deltaZ = radius / 2*m_finiteDifferenceDegree;
+
+            unsigned int gaussPointIterator = 0;
+            for (int zIterator=-m_finiteDifferenceDegree; zIterator<m_finiteDifferenceDegree+1; zIterator++)
+            {
+                for (int yIterator=-m_finiteDifferenceDegree; yIterator<m_finiteDifferenceDegree+1; yIterator++)
+                {
+                    const unsigned int gaussPointGlobalId = m_nbGaussPointsPerFrame*frameId + gaussPointIterator;
+
+                    Vector3 gaussPointOnRefFrame = refFramePos
+                                                 + yIterator*deltaY*refFrameYDirection
+                                                 + zIterator*deltaZ*refFrameZDirection;
+                    Vector3 deltaXPoint = newFramePos
+                                          + yIterator*deltaY*newFrameYDirection
+                                          + zIterator*deltaZ*newFrameZDirection;
+                    Vector3 deltaYPoint = gaussPointOnRefFrame
+                                          + m_deltaCurvAbscissa*refFrameYDirection;
+                    Vector3 deltaZPoint = gaussPointOnRefFrame
+                                          + m_deltaCurvAbscissa*refFrameZDirection;
+                    m_visualisationGaussPoints.push_back(gaussPointOnRefFrame);
+                    m_visualisationGaussPoints.push_back(deltaXPoint);
+                    m_visualisationGaussPoints.push_back(deltaYPoint);
+                    m_visualisationGaussPoints.push_back(deltaZPoint);
+
+                    // Approximating the deformation gradient by finite differences
+                    Vector3 deformationGradientColomn1 = (deltaXPoint - gaussPointOnRefFrame) / m_deltaCurvAbscissa;
+                    Vector3 deformationGradientColomn2 = (deltaYPoint - gaussPointOnRefFrame) / m_deltaCurvAbscissa;
+                    Vector3 deformationGradientColomn3 = (deltaZPoint - gaussPointOnRefFrame) / m_deltaCurvAbscissa;
+//                    if (frameId == 10)
+//                    {
+//                        std::cout << "deformationGradientColomn1 for point " << gaussPointIterator << " for frame " << frameId << " : " << deformationGradientColomn1 << std::endl;
+//                        std::cout << "deformationGradientColomn2 for point " << gaussPointIterator << " for frame " << frameId << " : " << deformationGradientColomn2 << std::endl;
+//                        std::cout << "deformationGradientColomn3 for point " << gaussPointIterator << " for frame " << frameId << " : " << deformationGradientColomn3 << std::endl;
+//                    }
+                    Mat3x3 deformationGradient = Mat3x3();
+                    deformationGradient.setsub(0, 0, deformationGradientColomn1);
+                    deformationGradient.setsub(0, 1, deformationGradientColomn2);
+                    deformationGradient.setsub(0, 2, deformationGradientColomn3);
+
+                    // Computation of the Green-Lagrange strain tensor
+                    // Basic computation, probably not efficient
+                    // TO DO: take advantage of the tensor symmetry
+                    Mat3x3 strainTensor = 0.5 * (deformationGradient.transposed()*deformationGradient - Mat3x3::Identity());
+//                    if (frameId == 10)
+//                    {
+//                        std::cout << "strainTensor for point " << gaussPointIterator << " for frame 10 : " << strainTensor << std::endl;
+//                    }
+
+                    // Computation of the stress increment
+                    Vec9 vectStrainTensor = Vec9(strainTensor(0,0), strainTensor(0,1), strainTensor(0,2),
+                                                 strainTensor(1,0), strainTensor(1,1), strainTensor(1,2),
+                                                 strainTensor(2,0), strainTensor(2,1), strainTensor(2,2));
+                    Vec9 strainIncrement = vectStrainTensor - m_previousStrains[gaussPointGlobalId];
+                    Vec9 newStressPoint = Vec9();
+                    {
+                        /// This method implements the radial return algorithm, as in "Numerical Implementation of
+                        /// Constitutive models: Rate-independent Deviatoric Plasticity", T.J.R. Hugues, 1984.
+                        /// The idea is to compute the stress increment in two steps : a purely elastic step, in
+                        /// which all deformation is considered elastic, and a plastic correction step, is
+                        /// deformation was actually important enough to generate plasticity.
+                        /// The plasticity model used in the computation is a Von Mises-Hill plasticity with
+                        /// linear mixed hardening.
+                        /// NB: we consider that the yield function and the plastic flow are equal (f=g). This
+                        /// corresponds to an associative flow rule (for plasticity).
+
+                        const Mat9x9& C = m_generalisedHookeMatrices[BeamIdContainingFrame];
+
+                        // First step = computation of the elastic predictor, as if deformation was entirely elastic
+                        const MechanicalState mechanicalState = m_gpMechanicalStates[gaussPointGlobalId];
+
+                        Vec9 elasticIncrement = C*strainIncrement;
+                        Vec9 elasticPredictorStress = m_previousStresses[gaussPointGlobalId] + elasticIncrement;
+
+                        const Vec9& backStress = m_backStresses[gaussPointGlobalId];
+                        const Real yieldStress = m_yieldStresses[gaussPointGlobalId];
+
+                        if (vonMisesYield(elasticPredictorStress, backStress, yieldStress) < m_stressComparisonThreshold)
+                        {
+                            // The Gauss point is in elastic state: the back stress and yield stress
+                            // remain constant, and the new stress is equal to the trial stress.
+                            newStressPoint = elasticPredictorStress;
+
+                            // If the Gauss point was initially plastic, we update its mechanical state
+                            if (mechanicalState == MechanicalState::PLASTIC)
+                                m_gpMechanicalStates[gaussPointGlobalId] = MechanicalState::POSTPLASTIC;
+                        }
+                        else
+                        {
+                            // If the Gauss point was initially elastic, we update its mechanical state
+                            if (mechanicalState == MechanicalState::POSTPLASTIC || mechanicalState == MechanicalState::ELASTIC)
+                                m_gpMechanicalStates[gaussPointGlobalId] = MechanicalState::PLASTIC;
+
+                            Vec9 shiftedDeviatoricElasticPredictor = deviatoricStress(elasticPredictorStress - backStress);
+
+                            // Gradient of the Von Mises yield function is colinear to the deviatoric stress tensor.
+                            // Thus we can compute the yield surface normal using the deviatoric stress.
+                            // For the Von Mises yield function, the normal direction to the yield surface doesn't
+                            // change between the elastic predictor and it's projection on the yield surface
+                            Real shiftDevElasticPredictorNorm = shiftedDeviatoricElasticPredictor.norm();
+                            Vec9 N = shiftedDeviatoricElasticPredictor / shiftDevElasticPredictorNorm;
+
+                            // Indicates the proportion of Kinematic vs isotropic hardening. hardeningCoefficient=0 <=> kinematic, hardeningCoefficient=1 <=> isotropic
+                            const Real hardeningCoefficient = m_hardeningCoefficients[BeamIdContainingFrame];
+
+                            const Real E = m_youngModuli[BeamIdContainingFrame];
+                            const Real nu = m_poissonRatios[BeamIdContainingFrame];
+                            const Real mu = E / ( 2*(1 + nu) ); // Lame coefficient
+
+                            // Plastic modulus
+                            const Real H = m_plasticModuli[BeamIdContainingFrame];
+
+                            // Computation of the plastic multiplier
+                            const double sqrt2 = helper::rsqrt(2.0);
+                            const double sqrt3 = helper::rsqrt(3.0);
+                            const double sqrt6 = sqrt2 * sqrt3;
+                            Real plasticMultiplier = (shiftDevElasticPredictorNorm - (sqrt2 / sqrt3) * yieldStress) / ( mu*sqrt6 *( 1 + H/(3*mu) ) );
+
+                            // Updating plastic variables
+                            newStressPoint = elasticPredictorStress - sqrt6*mu*plasticMultiplier * N;
+
+                            Real newYieldStress = yieldStress + hardeningCoefficient * H * plasticMultiplier;
+                            m_yieldStresses[gaussPointGlobalId] = newYieldStress;
+                            Vec9 newBackStress = backStress + (sqrt2 / sqrt3) * (1-hardeningCoefficient) * H * plasticMultiplier * N;
+                            m_backStresses[gaussPointGlobalId] = newBackStress;
+                        }
+                        // Updates strain and stress for next step
+                        m_previousStrains[gaussPointGlobalId] += strainIncrement;
+                        m_previousStresses[gaussPointGlobalId] = newStressPoint;
+                    }
+
+                    // Computation of the internal forces
+
+                    gaussPointIterator += 1;
+                }
+            }
+
+        } // endfor frameId
+    } // endif l_fromPlasticForceField
 }
 
 
@@ -604,6 +853,10 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::draw(const core::visual::VisualP
             for (unsigned int i=0; i<sz-1; i++)
                 vparams->drawTool()->drawCylinder(positions[i], positions[i+1], radius, drawColor);
         }
+
+        //EXPERIMENTAL: visualisation of finite difference section points
+        RGBAColor drawGaussPointsColour = RGBAColor::gray();
+        vparams->drawTool()->drawPoints(m_visualisationGaussPoints, 10, drawGaussPointsColour);
     }
     else
     {
@@ -641,5 +894,50 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::draw(const core::visual::VisualP
         if(!d_debug.getValue()) return;
     glEnd();
 }
+
+// EXPERIMENTAL : plasticity methods
+template <class TIn1, class TIn2, class TOut>
+typename DiscreteCosseratMapping<TIn1, TIn2, TOut>::Real DiscreteCosseratMapping<TIn1, TIn2, TOut>::equivalentStress(const Vec9& stressTensor)
+{
+    // Direct computation of the equivalent stress. We use the fact that the tensor is symmetric
+    Real sigmaXX = stressTensor[0];
+    Real sigmaXY = stressTensor[1];
+    //Real sigmaXZ = stressTensor[2];
+    //Real sigmaYX = stressTensor[3];
+    Real sigmaYY = stressTensor[4];
+    Real sigmaYZ = stressTensor[5];
+    Real sigmaZX = stressTensor[6];
+    //Real sigmaZY = stressTensor[7];
+    Real sigmaZZ = stressTensor[8];
+
+    double aux1 = 0.5 * ((sigmaXX - sigmaYY) * (sigmaXX - sigmaYY) + (sigmaYY - sigmaZZ) * (sigmaYY - sigmaZZ) + (sigmaZZ - sigmaXX) * (sigmaZZ - sigmaXX));
+    double aux2 = 3.0 * (sigmaYZ * sigmaYZ + sigmaZX * sigmaZX + sigmaXY * sigmaXY);
+
+    return helper::rsqrt(aux1 + aux2);
+}
+
+template <class TIn1, class TIn2, class TOut>
+typename DiscreteCosseratMapping<TIn1, TIn2, TOut>::Real DiscreteCosseratMapping<TIn1, TIn2, TOut>::vonMisesYield(const Vec9& stressTensor,
+                                                                                                                const Vec9& backStress,
+                                                                                                                const Real yieldStress)
+{
+    return equivalentStress(stressTensor-backStress) - yieldStress;
+}
+
+template <class TIn1, class TIn2, class TOut>
+typename DiscreteCosseratMapping<TIn1, TIn2, TOut>::Vec9 DiscreteCosseratMapping<TIn1, TIn2, TOut>::deviatoricStress(const Vec9& stressTensor)
+{
+    // Returns the deviatoric stress from a given stress tensor in Voigt notation
+
+    Vec9 deviatoricStress = stressTensor;
+    double mean = (stressTensor[0] + stressTensor[4] + stressTensor[8]) / 3.0;
+
+    deviatoricStress[0] -= mean;
+    deviatoricStress[4] -= mean;
+    deviatoricStress[8] -= mean;
+
+    return deviatoricStress;
+}
+
 
 } // namespace sofa

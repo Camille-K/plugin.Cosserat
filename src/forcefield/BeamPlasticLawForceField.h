@@ -86,6 +86,11 @@ public:
     ///////////////////////////////////////////////////////////////////////////
 
     const vector<MechanicalState>& getSectionMechanicalStates();
+    const vector<Real>& getYoungModuli();
+    const vector<Real>& getPoissonRatios();
+    const vector<Real>& getInitialYieldStresses();
+    const vector<Real>& getPlasticModuli();
+    const vector<Real>& getHardeningCoefficients();
 
 protected:
 
