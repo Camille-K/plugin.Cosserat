@@ -78,7 +78,7 @@ DiscreteCosseratMapping<TIn1, TIn2, TOut>::DiscreteCosseratMapping()
     }, {});
 
     //EXPERIMENTAL
-    m_deltaCurvAbscissa = 1.0e-1;
+    m_deltaCurvAbscissa = 2.0e-1;
     m_finiteDifferenceDegree = 1;
     m_nbGaussPointsPerFrame = (2*m_finiteDifferenceDegree+1)*(2*m_finiteDifferenceDegree+1);
 }
@@ -121,22 +121,22 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::init()
         const auto nbBeams = d_curv_abs_section.getValue().size()-1;
 
         m_youngModuli.clear();
-        m_youngModuli = type::vector<Real>(l_fromPlasticForceField->getYoungModuli());
+        m_youngModuli = type::vector<Real1>(l_fromPlasticForceField->getYoungModuli());
         m_poissonRatios.clear();
-        m_poissonRatios = type::vector<Real>(l_fromPlasticForceField->getPoissonRatios());
+        m_poissonRatios = type::vector<Real1>(l_fromPlasticForceField->getPoissonRatios());
         m_initialYieldStresses.clear();
-        m_initialYieldStresses = type::vector<Real>(l_fromPlasticForceField->getInitialYieldStresses());
+        m_initialYieldStresses = type::vector<Real1>(l_fromPlasticForceField->getInitialYieldStresses());
         m_plasticModuli.clear();
-        m_plasticModuli = type::vector<Real>(l_fromPlasticForceField->getPlasticModuli());
+        m_plasticModuli = type::vector<Real1>(l_fromPlasticForceField->getPlasticModuli());
         m_hardeningCoefficients.clear();
-        m_hardeningCoefficients = type::vector<Real>(l_fromPlasticForceField->getHardeningCoefficients());
+        m_hardeningCoefficients = type::vector<Real1>(l_fromPlasticForceField->getHardeningCoefficients());
 
         m_generalisedHookeMatrices.clear();
         m_generalisedHookeMatrices.resize(nbBeams);
         for (unsigned int beamId; beamId < nbBeams; beamId++)
         {
-            const Real E = m_youngModuli[beamId];
-            const Real nu = m_poissonRatios[beamId];
+            const Real1 E = m_youngModuli[beamId];
+            const Real1 nu = m_poissonRatios[beamId];
             Mat9x9 currentBeamHookeLaw = Mat9x9();
             currentBeamHookeLaw(0, 0) = currentBeamHookeLaw(4, 4) = currentBeamHookeLaw(8, 8) = 1 - nu;
             currentBeamHookeLaw(0, 4) = currentBeamHookeLaw(0, 8) = currentBeamHookeLaw(4, 0) = currentBeamHookeLaw(8, 0) = nu;
@@ -244,7 +244,7 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::apply(
             // Getting the updated position of the frame
             OutCoord refFrameDoFs = framesDoFs[frameId];
             const Vector3& refFramePos = refFrameDoFs.getCenter();
-            const type::Quat<Real>& refFrameQuat = refFrameDoFs.getOrientation();
+            const type::Quat<Real1>& refFrameQuat = refFrameDoFs.getOrientation();
             const Vector3 refFrameYDirection = refFrameQuat.rotate(Vector3(0., 1., 0.));
             const Vector3 refFrameZDirection = refFrameQuat.rotate(Vector3(0., 0., 1.));
 
@@ -268,8 +268,8 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::apply(
 
             // Computing positions of Gauss points for each frame
             auto radius = l_fromPlasticForceField->getRadius();
-            Real deltaY = radius / 2*m_finiteDifferenceDegree;
-            Real deltaZ = radius / 2*m_finiteDifferenceDegree;
+            Real1 deltaY = radius / 2*m_finiteDifferenceDegree;
+            Real1 deltaZ = radius / 2*m_finiteDifferenceDegree;
 
             unsigned int gaussPointIterator = 0;
             for (int zIterator=-m_finiteDifferenceDegree; zIterator<m_finiteDifferenceDegree+1; zIterator++)
@@ -312,10 +312,10 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::apply(
                     // Basic computation, probably not efficient
                     // TO DO: take advantage of the tensor symmetry
                     Mat3x3 strainTensor = 0.5 * (deformationGradient.transposed()*deformationGradient - Mat3x3::Identity());
-//                    if (frameId == 10)
-//                    {
-//                        std::cout << "strainTensor for point " << gaussPointIterator << " for frame 10 : " << strainTensor << std::endl;
-//                    }
+                    if (frameId == 10)
+                    {
+                        std::cout << "strainTensor for point " << gaussPointIterator << " for frame 10 : " << strainTensor << std::endl;
+                    }
 
                     // Computation of the stress increment
                     Vec9 vectStrainTensor = Vec9(strainTensor(0,0), strainTensor(0,1), strainTensor(0,2),
@@ -343,7 +343,7 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::apply(
                         Vec9 elasticPredictorStress = m_previousStresses[gaussPointGlobalId] + elasticIncrement;
 
                         const Vec9& backStress = m_backStresses[gaussPointGlobalId];
-                        const Real yieldStress = m_yieldStresses[gaussPointGlobalId];
+                        const Real1 yieldStress = m_yieldStresses[gaussPointGlobalId];
 
                         if (vonMisesYield(elasticPredictorStress, backStress, yieldStress) < m_stressComparisonThreshold)
                         {
@@ -367,29 +367,29 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::apply(
                             // Thus we can compute the yield surface normal using the deviatoric stress.
                             // For the Von Mises yield function, the normal direction to the yield surface doesn't
                             // change between the elastic predictor and it's projection on the yield surface
-                            Real shiftDevElasticPredictorNorm = shiftedDeviatoricElasticPredictor.norm();
+                            Real1 shiftDevElasticPredictorNorm = shiftedDeviatoricElasticPredictor.norm();
                             Vec9 N = shiftedDeviatoricElasticPredictor / shiftDevElasticPredictorNorm;
 
                             // Indicates the proportion of Kinematic vs isotropic hardening. hardeningCoefficient=0 <=> kinematic, hardeningCoefficient=1 <=> isotropic
-                            const Real hardeningCoefficient = m_hardeningCoefficients[BeamIdContainingFrame];
+                            const Real1 hardeningCoefficient = m_hardeningCoefficients[BeamIdContainingFrame];
 
-                            const Real E = m_youngModuli[BeamIdContainingFrame];
-                            const Real nu = m_poissonRatios[BeamIdContainingFrame];
-                            const Real mu = E / ( 2*(1 + nu) ); // Lame coefficient
+                            const Real1 E = m_youngModuli[BeamIdContainingFrame];
+                            const Real1 nu = m_poissonRatios[BeamIdContainingFrame];
+                            const Real1 mu = E / ( 2*(1 + nu) ); // Lame coefficient
 
                             // Plastic modulus
-                            const Real H = m_plasticModuli[BeamIdContainingFrame];
+                            const Real1 H = m_plasticModuli[BeamIdContainingFrame];
 
                             // Computation of the plastic multiplier
                             const double sqrt2 = helper::rsqrt(2.0);
                             const double sqrt3 = helper::rsqrt(3.0);
                             const double sqrt6 = sqrt2 * sqrt3;
-                            Real plasticMultiplier = (shiftDevElasticPredictorNorm - (sqrt2 / sqrt3) * yieldStress) / ( mu*sqrt6 *( 1 + H/(3*mu) ) );
+                            Real1 plasticMultiplier = (shiftDevElasticPredictorNorm - (sqrt2 / sqrt3) * yieldStress) / ( mu*sqrt6 *( 1 + H/(3*mu) ) );
 
                             // Updating plastic variables
                             newStressPoint = elasticPredictorStress - sqrt6*mu*plasticMultiplier * N;
 
-                            Real newYieldStress = yieldStress + hardeningCoefficient * H * plasticMultiplier;
+                            Real1 newYieldStress = yieldStress + hardeningCoefficient * H * plasticMultiplier;
                             m_yieldStresses[gaussPointGlobalId] = newYieldStress;
                             Vec9 newBackStress = backStress + (sqrt2 / sqrt3) * (1-hardeningCoefficient) * H * plasticMultiplier * N;
                             m_backStresses[gaussPointGlobalId] = newBackStress;
@@ -897,18 +897,18 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::draw(const core::visual::VisualP
 
 // EXPERIMENTAL : plasticity methods
 template <class TIn1, class TIn2, class TOut>
-typename DiscreteCosseratMapping<TIn1, TIn2, TOut>::Real DiscreteCosseratMapping<TIn1, TIn2, TOut>::equivalentStress(const Vec9& stressTensor)
+typename DiscreteCosseratMapping<TIn1, TIn2, TOut>::Real1 DiscreteCosseratMapping<TIn1, TIn2, TOut>::equivalentStress(const Vec9& stressTensor)
 {
     // Direct computation of the equivalent stress. We use the fact that the tensor is symmetric
-    Real sigmaXX = stressTensor[0];
-    Real sigmaXY = stressTensor[1];
+    Real1 sigmaXX = stressTensor[0];
+    Real1 sigmaXY = stressTensor[1];
     //Real sigmaXZ = stressTensor[2];
     //Real sigmaYX = stressTensor[3];
-    Real sigmaYY = stressTensor[4];
-    Real sigmaYZ = stressTensor[5];
-    Real sigmaZX = stressTensor[6];
+    Real1 sigmaYY = stressTensor[4];
+    Real1 sigmaYZ = stressTensor[5];
+    Real1 sigmaZX = stressTensor[6];
     //Real sigmaZY = stressTensor[7];
-    Real sigmaZZ = stressTensor[8];
+    Real1 sigmaZZ = stressTensor[8];
 
     double aux1 = 0.5 * ((sigmaXX - sigmaYY) * (sigmaXX - sigmaYY) + (sigmaYY - sigmaZZ) * (sigmaYY - sigmaZZ) + (sigmaZZ - sigmaXX) * (sigmaZZ - sigmaXX));
     double aux2 = 3.0 * (sigmaYZ * sigmaYZ + sigmaZX * sigmaZX + sigmaXY * sigmaXY);
@@ -917,9 +917,9 @@ typename DiscreteCosseratMapping<TIn1, TIn2, TOut>::Real DiscreteCosseratMapping
 }
 
 template <class TIn1, class TIn2, class TOut>
-typename DiscreteCosseratMapping<TIn1, TIn2, TOut>::Real DiscreteCosseratMapping<TIn1, TIn2, TOut>::vonMisesYield(const Vec9& stressTensor,
+typename DiscreteCosseratMapping<TIn1, TIn2, TOut>::Real1 DiscreteCosseratMapping<TIn1, TIn2, TOut>::vonMisesYield(const Vec9& stressTensor,
                                                                                                                 const Vec9& backStress,
-                                                                                                                const Real yieldStress)
+                                                                                                                const Real1 yieldStress)
 {
     return equivalentStress(stressTensor-backStress) - yieldStress;
 }

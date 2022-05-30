@@ -87,14 +87,14 @@ public:
     typedef Data<In2VecDeriv>               In2DataVecDeriv;
     typedef Data<In2MatrixDeriv>            In2DataMatrixDeriv;
     typedef type::Mat<6,6,Real2>            Mat6x6;
-    typedef type::Mat<3,3,Real>             Mat3x3;
+    typedef type::Mat<3,3,Real2>             Mat3x3;
     typedef type::Mat<3,6,Real2>            Mat3x6;
     typedef type::Mat<6,3,Real2>            Mat6x3;
     typedef type::Mat<4,4,Real2>            Mat4x4;
 
     //EXPERIMENTAL: plasticity testing
-    typedef type::Vec<9,Real> Vec9;
-    typedef type::Mat<9,9,Real> Mat9x9;
+    typedef type::Vec<9,Real1> Vec9;
+    typedef type::Mat<9,9,Real1> Mat9x9;
 
     typedef typename Out::VecCoord          OutVecCoord;
     typedef typename Out::Coord             OutCoord;
@@ -104,7 +104,7 @@ public:
     typedef Data<OutVecCoord>               OutDataVecCoord;
     typedef Data<OutVecDeriv>               OutDataVecDeriv;
     typedef Data<OutMatrixDeriv>            OutDataMatrixDeriv;
-    typedef typename SolidTypes<Real2>::Transform      Transform ;
+    typedef typename SolidTypes<Real1>::Transform      Transform ;
 
 protected:
     Data<int>                               d_deformationAxis;
@@ -155,10 +155,10 @@ protected:
 
     /********************** EXPERIMENTAL: strain approximation by finite differences **************************/
     // Global parameters for finite differences
-    Real m_deltaCurvAbscissa;
+    Real1 m_deltaCurvAbscissa;
     int m_finiteDifferenceDegree;
     int m_nbGaussPointsPerFrame;
-    Real m_stressComparisonThreshold;
+    Real1 m_stressComparisonThreshold;
 
     //Visualisation
     type::vector<Vector3> m_visualisationGaussPoints;
@@ -178,20 +178,20 @@ protected:
 
     type::vector<MechanicalState> m_gpMechanicalStates;
     type::vector<Mat9x9> m_generalisedHookeMatrices;
-    type::vector<Real> m_youngModuli; //TO DO: keep only if needed in different methods (only init ?)
-    type::vector<Real> m_poissonRatios; //TO DO: keep only if needed in different methods (only init ?)
-    type::vector<Real> m_initialYieldStresses; //TO DO: keep only if needed in different methods (only init ?)
-    type::vector<Real> m_plasticModuli; //TO DO: keep only if needed in different methods (only init ?)
-    type::vector<Real> m_hardeningCoefficients; //TO DO: keep only if needed in different methods (only init ?)
-    type::vector<Real> m_yieldStresses;
+    type::vector<Real1> m_youngModuli; //TO DO: keep only if needed in different methods (only init ?)
+    type::vector<Real1> m_poissonRatios; //TO DO: keep only if needed in different methods (only init ?)
+    type::vector<Real1> m_initialYieldStresses; //TO DO: keep only if needed in different methods (only init ?)
+    type::vector<Real1> m_plasticModuli; //TO DO: keep only if needed in different methods (only init ?)
+    type::vector<Real1> m_hardeningCoefficients; //TO DO: keep only if needed in different methods (only init ?)
+    type::vector<Real1> m_yieldStresses;
     type::vector<Vec9> m_backStresses;
     type::vector<Vec9> m_previousStrains;
     type::vector<Vec9> m_previousStresses;
 
     /// Computes the equivalent stress from a tensor
-    Real equivalentStress(const Vec9& stressTensor);
+    Real1 equivalentStress(const Vec9& stressTensor);
     /// Evaluates the Von Mises yield function for given stress tensor and yield stress
-    Real vonMisesYield(const Vec9& stressTensor, const Vec9& backStress, const Real yieldStress);
+    Real1 vonMisesYield(const Vec9& stressTensor, const Vec9& backStress, const Real1 yieldStress);
     /// Computes the deviatoric stress from a tensor
     Vec9 deviatoricStress(const Vec9& stressTensor);
 
