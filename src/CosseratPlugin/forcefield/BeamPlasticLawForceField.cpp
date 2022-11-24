@@ -1,6 +1,6 @@
 /******************************************************************************
-*       SOFA, Simulation Open-Framework Architecture, development version     *
-*                (c) 2006-2019 INRIA, USTL, UJF, CNRS, MGH                    *
+*                 SOFA, Simulation Open-Framework Architecture                *
+*                    (c) 2006 INRIA, USTL, UJF, CNRS, MGH                     *
 *                                                                             *
 * This program is free software; you can redistribute it and/or modify it     *
 * under the terms of the GNU Lesser General Public License as published by    *
@@ -19,21 +19,31 @@
 *                                                                             *
 * Contact information: contact@sofa-framework.org                             *
 ******************************************************************************/
-#define SOFA_COSSERATPLUGIN_CPP_CosseratSlidingConstraint
-#include "CosseratSlidingConstraint.inl"
+#define SOFA_COSSERATPLUGIN_CPP_BeamPlasticLawForceField
+#include "BeamPlasticLawForceField.inl"
 
-#include <sofa/defaulttype/VecTypes.h>
 #include <sofa/core/ObjectFactory.h>
-#include <sofa/component/statecontainer/MechanicalObject.h>
 
-namespace sofa::component::constraintset
+namespace sofa::component::forcefield
 {
 
+////////////////////////////////////////////    FACTORY    //////////////////////////////////////////////
+// Registering the component
+// see: http://wiki.sofa-framework.org/wiki/ObjectFactory
+// 1-RegisterObject("description") + .add<> : Register the component
+// 2-.add<>(true) : Set default template
 using namespace sofa::defaulttype;
-using namespace sofa::helper;
 
-int CosseratSlidingConstraintClass = core::RegisterObject("TODO-CosseratSlidingConstraint")
-        .add< CosseratSlidingConstraint<Vec3Types> >(true);
+int BeamPlasticLawForceFieldClass = core::RegisterObject("This component is used to compute internal stress for torsion (along x) and bending (y and z), based on a Von-Mises plasticity law")
+    .add<BeamPlasticLawForceField<Vec3Types> >(true)
+    ;
 
-template class CosseratSlidingConstraint<Vec3dTypes>;
-}
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+// Force template specialization for the most common sofa floating point related type.
+// This goes with the extern template declaration in the .h. Declaring extern template
+// avoid the code generation of the template for each compilation unit.
+// see: http://www.stroustrup.com/C++11FAQ.html#extern-templates
+
+template class BeamPlasticLawForceField<Vec3Types>;
+
+} // sofa::component::forcefield

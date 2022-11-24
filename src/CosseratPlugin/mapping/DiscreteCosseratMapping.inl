@@ -107,6 +107,7 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::init()
     m_toModel = this->getToModels()[0];  // Cosserat rigid frames, in global frame
     m_colorMap.setColorScheme("Blue to Red");
     m_colorMap.reinit();
+}
 
     /***** EXPERIMENTAL: Strain approximation by finite differences *****/
 
@@ -884,21 +885,13 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::draw(const core::visual::VisualP
         {
             msg_info() << "No Cosserat force field found, no visual representation of such forcefield will be displayed.";
         }
-<<<<<<< HEAD:src/mapping/DiscreteCosseratMapping.inl
-
-        //EXPERIMENTAL: visualisation of finite difference section points
-        RGBAColor drawGaussPointsColour = RGBAColor::gray();
-        vparams->drawTool()->drawPoints(m_visualisationGaussPoints, 10, drawGaussPointsColour);
-    }
-    else
-    {
-        RGBAColor drawColor = d_color.getValue();
-        for (unsigned int i=0; i<sz-1; i++)
-            vparams->drawTool()->drawCylinder(positions[i], positions[i+1], d_radius.getValue(), drawColor);
-    }
-=======
         else
         {
+
+            //EXPERIMENTAL: visualisation of finite difference section points
+            RGBAColor drawGaussPointsColour = RGBAColor::gray();
+            vparams->drawTool()->drawPoints(m_visualisationGaussPoints, 10, drawGaussPointsColour);
+
             const auto beamLengths = l_fromBeamForceField->getBeamLengths();
 
             //Initialisation, with the begin frame of the first beam
@@ -909,8 +902,6 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::draw(const core::visual::VisualP
             Transform beginFrameGlobalTransform = frame0 * beginFrameLocalTransform;
             Vector3 beginFramePos = beginFrameGlobalTransform.getOrigin();
             type::Quat beginFrameQuat = beginFrameGlobalTransform.getOrientation();
-            vparams->drawTool()->drawFrame(beginFramePos, beginFrameQuat,
-                                           Vector3( 1,1,1 ), sofa::type::RGBAColor::gray());
 
             // Variables for the beam end frame
             double localEndNodeCurvAbs = 0.0;
@@ -941,22 +932,18 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::draw(const core::visual::VisualP
                 endFramePos = endFrameGlobalTransform.getOrigin();
                 endFrameQuat = endFrameGlobalTransform.getOrientation();
 
-                // Draw the end frame
-                vparams->drawTool()->drawFrame(endFramePos, endFrameQuat,
-                                               Vector3( 1,1,1 ), sofa::type::RGBAColor::gray());
 
                 //Draw a beam, which colour indicates the mechanical state
 
-
-                const auto sectionMechanicalStates = l_fromBeamForceField->getSectionMechanicalStates();
+                const auto sectionDeformationRegimes = l_fromBeamForceField->getSectionDeformationRegimes();
                 RGBAColor drawColor = RGBAColor::gray();
                 if (l_fromBeamForceField->isPlastic())
                 {
-                    if(sectionMechanicalStates[beamId] == MechanicalState::ELASTIC)
+                    if(sectionDeformationRegimes[beamId] == BeamHookeLawForceField<TIn1>::DeformationRegime::ELASTIC)
                         drawColor = RGBAColor(191/255.0, 37/255.0, 42/255.0, 0.8); // Red
-                    else if(sectionMechanicalStates[beamId] == MechanicalState::PLASTIC)
+                    else if(sectionDeformationRegimes[beamId] == BeamHookeLawForceField<TIn1>::DeformationRegime::PLASTIC)
                         drawColor = RGBAColor(40/255.0, 104/255.0, 137/255.0, 0.8); // Blue
-                    else // MechanicalState::POSTPLASTIC
+                    else // DeformationRegime::POSTPLASTIC
                         drawColor = RGBAColor(76/255.0, 154/255.0, 50/255.0, 0.8); // Green
                  }
                 else
@@ -983,13 +970,18 @@ void DiscreteCosseratMapping<TIn1, TIn2, TOut>::draw(const core::visual::VisualP
             }
         } // if l_fromBeamForceField
     } // if d_drawBeamSegments
+    else
+    {
+        // Drawing cylinders between the output frames
+        RGBAColor drawFrameColor = d_color.getValue();
+        for (unsigned int i=0; i<sz-1; i++)
+            vparams->drawTool()->drawCylinder(positions[i], positions[i+1],
+                                              d_radius.getValue(), drawFrameColor);
 
-    // Drawing cylinders between the output frames
-    RGBAColor drawFrameColor = d_color.getValue();
-    for (unsigned int i=0; i<sz-1; i++)
-        vparams->drawTool()->drawCylinder(positions[i], positions[i+1],
-                                          d_radius.getValue(), drawFrameColor);
->>>>>>> DevPlasticity:src/CosseratPlugin/mapping/DiscreteCosseratMapping.inl
+        //EXPERIMENTAL: visualisation of finite difference section points
+        RGBAColor drawGaussPointsColour = RGBAColor::gray();
+        vparams->drawTool()->drawPoints(m_visualisationGaussPoints, 10, drawGaussPointsColour);
+    }
 
 
     //Define color map
